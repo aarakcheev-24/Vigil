@@ -1,0 +1,134 @@
+import SwiftUI
+import Combine
+import UserNotifications
+
+enum AwakeMode: String {
+    case manual   // включено пользователем тумблером
+    case auto     // включается само, пока работает агент
+}
+
+final class AppState: ObservableObject {
+    // Настройки (с сохранением)
+    @AppStorage("lidProof")       var lidProof = true
+    @AppStorage("autoMode")       var autoMode = true
+    @AppStorage("batteryFloor")   var batteryFloor = 15        // %
+    @AppStorage("notifyOnPause")  var notifyOnPause = true
+
+    // Состояние
+    @Published var isAwake = false
+    @Published var battery = BatterySnapshot(percent: -1, isCharging: false, onAC: true, hasBattery: false)
+    @Published var agents: [AgentStatus] = []
+    @Published var startedAt: Date? = nil
+    @Published var pausedUntil: Date? = nil
+    @Published var now = Date()
+
+    private let power = PowerManager()
+    private let monitor = AgentMonitor()
+    private var timer: Timer?
+
+    var workingAgents: [AgentStatus] { agents.filter { $0.isActive } }
+    var totalSessions: Int { agents.reduce(0) { $0 + $1.sessions } }
+
+    var statusLine: String {
+        if let until = pausedUntil, until > now {
+            let mins = Int(until.timeIntervalSince(now) / 60) + 1
+            return "Paused — \(mins)m left"
+        }
+        if isAwake {
+            let lid = lidProof ? "lid-proof" : "screen-on"
+            return "Awake — \(lid) · \(elapsedString)"
+        }
+        return autoMode ? "Auto — sleeps when idle" : "Asleep — sleep allowed"
+    }
+
+    var elapsedString: String {
+        guard let s = startedAt else { return "0h 0m" }
+        let secs = Int(now.timeIntervalSince(s))
+        return "\(secs / 3600)h \((secs % 3600) / 60)m"
+    }
+
+    func boot() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        refresh()
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+        RunLoop.main.add(timer!, forMode: .common)
+    }
+
+    // MARK: - Управление
+
+    func toggle() {
+        if isAwake {
+            stopAwake()
+            // ручное выключение перебивает auto до следующего запуска агента
+        } else {
+            pausedUntil = nil
+            startAwake()
+        }
+    }
+
+    func pause(minutes: Int) {
+        pausedUntil = Date().addingTimeInterval(Double(minutes) * 60)
+        stopAwake()
+        notify("Paused for \(minutes >= 60 ? "\(minutes/60)h" : "\(minutes)m")",
+               "\(Brand.appName) won't keep your Mac awake until then.")
+    }
+
+    private func startAwake() {
+        let onBattery = battery.hasBattery && !battery.onAC
+        power.start(lidProof: lidProof,
+                    onBattery: onBattery,
+                    reason: "\(Brand.appName): \(totalSessions) agent session(s) running")
+        isAwake = true
+        if startedAt == nil { startedAt = Date() }
+    }
+
+    private func stopAwake() {
+        power.stop()
+        isAwake = false
+        startedAt = nil
+    }
+
+    // MARK: - Опрос
+
+    func refresh() {
+        now = Date()
+        battery = BatteryMonitor.read()
+        agents = monitor.scan()
+
+        // снять паузу по истечении
+        if let until = pausedUntil, until <= now { pausedUntil = nil }
+
+        // авто-стоп по низкому заряду (батарея, не на зарядке)
+        if isAwake, battery.hasBattery, !battery.onAC, battery.percent >= 0,
+           battery.percent <= batteryFloor {
+            stopAwake()
+            pausedUntil = Date().addingTimeInterval(300) // не дёргаться 5 минут
+            notify("Stopped — battery \(battery.percent)%",
+                   "Below your \(batteryFloor)% floor. Plug in to keep going.")
+            return
+        }
+
+        // авто-режим: бодрствуем, пока есть рабочие агенты
+        guard pausedUntil == nil else { return }
+        if autoMode {
+            let working = totalSessions > 0
+            if working && !isAwake { startAwake() }
+            else if !working && isAwake { stopAwake() }
+        }
+
+        // поддерживать актуальный lid-proof, если настройку поменяли на лету
+        if isAwake && power.isActive == false { startAwake() }
+    }
+
+    private func notify(_ title: String, _ body: String) {
+        guard notifyOnPause else { return }
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        )
+    }
+}
