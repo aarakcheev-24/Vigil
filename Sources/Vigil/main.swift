@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private let state = AppState()
@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.isMovableByWindowBackground = true
         win.center()
         win.isReleasedWhenClosed = false
+        win.delegate = self   // закрытие крестиком тоже отметит онбординг пройденным
         win.contentViewController = NSHostingController(
             rootView: OnboardingView(state: state) { [weak self] in self?.finishOnboarding() })
         onboardingWindow = win
@@ -85,6 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         state.shutdown()
+    }
+
+    // Закрыли окно онбординга (в т.ч. крестиком) — больше не показывать.
+    func windowWillClose(_ notification: Notification) {
+        UserDefaults.standard.set(true, forKey: "didOnboard")
     }
 
     @objc private func togglePopover() {

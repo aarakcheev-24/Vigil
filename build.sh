@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP_NAME="Vigil"
-BUNDLE_ID="com.local.vigil"
+BUNDLE_ID="com.aarakcheev.vigil"
 APP="$APP_NAME.app"
 
 echo "▸ Building release…"
