@@ -192,16 +192,10 @@ struct SettingsView: View {
             Toggle("Auto mode (wake only while an agent is working)", isOn: $state.autoMode)
             Toggle("Notify me when it pauses", isOn: $state.notifyOnPause)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle("Force lid-closed wake on battery", isOn: Binding(
-                    get: { state.forceClamshell },
-                    set: { state.setForceClamshell($0) }
-                ))
-                Text(state.clamshellSupported
-                     ? "Access granted ✓ — works without a password now."
-                     : "Asks for your admin password once, then never again. On AC power this isn't needed.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+            Text(state.clamshellSupported
+                 ? "Lid-closed wake on battery: enabled — follows the switch."
+                 : "Lid-closed wake on battery isn't set up. Re-run onboarding to grant it once.")
+                .font(.caption).foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Stop below \(state.batteryFloor)% battery")

@@ -66,6 +66,14 @@ final class PowerManager {
         return ok
     }
 
+    /// При старте принудительно снимаем запрет сна, чтобы не осталось «залипшего»
+    /// disablesleep=1 от прошлой сессии/версии. Тихо, без пароля.
+    func syncOffAtLaunch() {
+        guard clamshellSupported else { return }
+        _ = runSudoNoPrompt("disablesleep 0")
+        clamshellForced = false
+    }
+
     /// Идемпотентно. Если доступ выдан — выполняется тихо, без пароля.
     func setClamshell(_ enabled: Bool) {
         guard enabled != clamshellForced else { return }

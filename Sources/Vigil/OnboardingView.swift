@@ -45,10 +45,10 @@ struct OnboardingView: View {
                 permissionRow(
                     icon: "macbook.and.iphone",
                     title: "Lid-closed wake on battery",
-                    subtitle: "Optional. Asks for your admin password once, then never again.",
+                    subtitle: "Optional. Enter your admin password once so the switch can keep the Mac awake with the lid shut on battery.",
                     done: clamshellOn || state.clamshellSupported,
                     optional: true,
-                    action: { state.setForceClamshell(true); clamshellOn = state.clamshellSupported })
+                    action: { state.grantClamshell(); clamshellOn = state.clamshellSupported })
             }
             .padding(24)
 
@@ -106,8 +106,24 @@ struct OnboardingView: View {
     }
 
     private func requestNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { ok, _ in
-            DispatchQueue.main.async { notifGranted = ok }
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { s in
+            switch s.authorizationStatus {
+            case .notDetermined:
+                // первый раз — показываем системный диалог
+                center.requestAuthorization(options: [.alert, .sound]) { ok, _ in
+                    DispatchQueue.main.async { notifGranted = ok }
+                }
+            case .denied:
+                // повторно диалог не показать — открываем Системные настройки
+                DispatchQueue.main.async {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            default:
+                DispatchQueue.main.async { notifGranted = true }
+            }
         }
     }
 

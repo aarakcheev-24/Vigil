@@ -14,8 +14,6 @@ final class AppState: ObservableObject {
     @AppStorage("autoMode")       var autoMode = true
     @AppStorage("batteryFloor")   var batteryFloor = 15        // %
     @AppStorage("notifyOnPause")  var notifyOnPause = true
-    /// Запрет сна с закрытой крышкой НА БАТАРЕЕ через pmset (нужны права админа). По умолчанию выкл.
-    @AppStorage("forceClamshell") var forceClamshell = false
 
     // Состояние
     @Published var isAwake = false
@@ -62,7 +60,9 @@ final class AppState: ObservableObject {
     private var tick = 0
 
     func boot() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // Разрешение на уведомления НЕ просим здесь — иначе системный диалог
+        // съедается до онбординга и кнопка Allow потом «ничего не делает».
+        power.syncOffAtLaunch()   // сбросить возможный залипший запрет сна
         refresh()
         // Тик раз в секунду — таймер идёт плавно. Тяжёлый скан (ps/батарея) — раз в 5 сек.
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -148,9 +148,10 @@ final class AppState: ObservableObject {
         // поддерживать актуальный lid-proof, если настройку поменяли на лету
         if isAwake && power.isActive == false { startAwake() }
 
-        // pmset clamshell — оценивается ОТДЕЛЬНО от мигания авто-режима, идемпотентно,
-        // поэтому пароль не дёргается на каждый запуск/остановку агента.
-        let wantClamshell = forceClamshell && lidProof && battery.hasBattery && !battery.onAC
+        // pmset clamshell привязан К ТУМБЛЕРУ: запрет сна с закрытой крышкой действует,
+        // только пока Vigil реально держит Mac бодрым (isAwake) и мы на батарее.
+        // Тумблер выключен → disablesleep=0 → крышка закрыта → Mac спит как обычно.
+        let wantClamshell = isAwake && lidProof && battery.hasBattery && !battery.onAC
         power.setClamshell(wantClamshell)
     }
 
@@ -172,19 +173,11 @@ final class AppState: ObservableObject {
         objectWillChange.send()
     }
 
-    /// Включение/выключение «force clamshell». При первом включении один раз спросит
-    /// пароль админа и выдаст постоянный доступ (sudoers). Дальше пароль не нужен.
-    func setForceClamshell(_ on: Bool) {
-        if on && !power.clamshellSupported {
-            let granted = power.installClamshellSupport()
-            if !granted {
-                forceClamshell = false
-                notify("Access not granted", "Couldn't set up lid-closed wake on battery.")
-                return
-            }
-        }
-        forceClamshell = on
-        refresh()
+    /// Разовая выдача доступа к clamshell (онбординг): один раз пароль админа → sudoers.
+    /// Дальше запрет сна включается/выключается вместе с тумблером без паролей.
+    @discardableResult
+    func grantClamshell() -> Bool {
+        power.installClamshellSupport()
     }
 
     /// Вызывается при выходе — снимает запрет сна.
