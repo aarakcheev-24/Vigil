@@ -26,8 +26,6 @@ final class AppState: ObservableObject {
     @Published var startedAt: Date? = nil
     @Published var pausedUntil: Date? = nil
     @Published var now = Date()
-    /// Триггер: попросить попап открыть Settings (после онбординга).
-    @Published var presentSettings = false
 
     private let power = PowerManager()
     private let monitor = AgentMonitor()

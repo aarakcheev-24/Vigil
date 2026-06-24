@@ -29,9 +29,6 @@ struct ContentView: View {
         )
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSettings) { SettingsView(state: state) }
-        .onChange(of: state.presentSettings) { open in
-            if open { showSettings = true; state.presentSettings = false }
-        }
     }
 
     // MARK: Header
