@@ -10,7 +10,6 @@ enum AwakeMode: String {
 
 final class AppState: ObservableObject {
     // Настройки (с сохранением)
-    @AppStorage("lidProof")       var lidProof = true
     @AppStorage("autoMode")       var autoMode = true
     @AppStorage("batteryFloor")   var batteryFloor = 15        // %
     @AppStorage("notifyOnPause")  var notifyOnPause = true
@@ -43,8 +42,7 @@ final class AppState: ObservableObject {
             return "Paused — \(mins)m left"
         }
         if isAwake {
-            let lid = lidProof ? "lid-proof" : "screen-on"
-            return "Awake — \(lid) · \(elapsedString)"
+            return "Awake — lid-proof · \(elapsedString)"
         }
         if autoSuppressed { return "Off — you turned it off" }
         return autoMode ? "Auto — sleeps when idle" : "Asleep — sleep allowed"
@@ -99,7 +97,7 @@ final class AppState: ObservableObject {
     }
 
     private func startAwake() {
-        power.start(lidProof: lidProof,
+        power.start(lidProof: true,
                     reason: "\(Brand.appName): \(totalSessions) agent session(s) running")
         isAwake = true
         if startedAt == nil { startedAt = Date() }
@@ -145,13 +143,10 @@ final class AppState: ObservableObject {
             else if !working && isAwake { stopAwake() }
         }
 
-        // поддерживать актуальный lid-proof, если настройку поменяли на лету
-        if isAwake && power.isActive == false { startAwake() }
-
         // pmset clamshell привязан К ТУМБЛЕРУ: запрет сна с закрытой крышкой действует,
         // только пока Vigil реально держит Mac бодрым (isAwake) и мы на батарее.
         // Тумблер выключен → disablesleep=0 → крышка закрыта → Mac спит как обычно.
-        let wantClamshell = isAwake && lidProof && battery.hasBattery && !battery.onAC
+        let wantClamshell = isAwake && battery.hasBattery && !battery.onAC
         power.setClamshell(wantClamshell)
     }
 

@@ -188,7 +188,6 @@ struct SettingsView: View {
                 get: { state.launchAtLogin },
                 set: { state.setLaunchAtLogin($0) }
             ))
-            Toggle("Lid-proof (stay awake with the lid closed)", isOn: $state.lidProof)
             Toggle("Auto mode (wake only while an agent is working)", isOn: $state.autoMode)
             Toggle("Notify me when it pauses", isOn: $state.notifyOnPause)
 
