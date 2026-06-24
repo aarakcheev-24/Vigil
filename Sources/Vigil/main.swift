@@ -33,15 +33,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshIcon() {
         guard let button = statusItem.button else { return }
-        let name = state.isAwake ? "laptopcomputer.and.arrow.down" : Brand.menuBarSymbol
+        let icon = state.menuIcon
+        let name = state.isAwake ? icon.active : icon.idle
         let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         let img = NSImage(systemSymbolName: name, accessibilityDescription: Brand.appName)?
             .withSymbolConfiguration(cfg)
-        // template = автоматически белый в тёмной строке меню, чёрный в светлой
+        // template = система сама красит: белый в тёмной строке меню, чёрный в светлой.
+        // Цвет НЕ трогаем — состояние видно по самому значку (контур → заливка).
         img?.isTemplate = true
         button.image = img
-        // подсветим зелёным только когда реально не даём спать
-        button.contentTintColor = state.isAwake ? NSColor(Brand.good) : nil
+        button.contentTintColor = nil
     }
 
     func applicationWillTerminate(_ notification: Notification) {

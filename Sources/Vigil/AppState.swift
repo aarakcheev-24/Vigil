@@ -15,6 +15,9 @@ final class AppState: ObservableObject {
     @AppStorage("notifyOnPause")  var notifyOnPause = true
     /// Запрет сна с закрытой крышкой НА БАТАРЕЕ через pmset (нужны права админа). По умолчанию выкл.
     @AppStorage("forceClamshell") var forceClamshell = false
+    @AppStorage("menuIcon")       var menuIconRaw = MenuIcon.eye.rawValue
+
+    var menuIcon: MenuIcon { MenuIcon(rawValue: menuIconRaw) ?? .eye }
 
     // Состояние
     @Published var isAwake = false
