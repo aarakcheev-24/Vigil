@@ -16,7 +16,13 @@ final class PowerManager {
     private(set) var isActive = false
 
     private(set) var clamshellForced = false
-    private var clamshellDenied = false   // пользователь отклонил диалог — больше не спрашиваем
+
+    private let sudoersPath = "/etc/sudoers.d/vigil"
+
+    /// Одноразовый «грант доступа» уже выдан? (как разрешение в Конфиденциальности)
+    var clamshellSupported: Bool {
+        FileManager.default.fileExists(atPath: sudoersPath)
+    }
 
     // MARK: IOKit (без прав админа, можно вызывать часто)
 
@@ -42,33 +48,55 @@ final class PowerManager {
         if systemAssertion != 0 { IOPMAssertionRelease(systemAssertion); systemAssertion = 0 }
     }
 
-    // MARK: pmset clamshell (права админа, спрашиваем максимум один раз)
+    // MARK: pmset clamshell (грант доступа выдаётся ОДИН РАЗ)
 
-    /// Идемпотентно. Срабатывает только при реальной смене состояния.
-    /// Если пользователь один раз отклонил диалог — больше не пристаёт.
+    /// Первая настройка: один диалог пароля админа ставит правило sudoers, которое
+    /// разрешает запускать ровно `pmset … disablesleep` без пароля. Дальше — без запросов.
+    /// Возвращает true, если доступ выдан.
+    @discardableResult
+    func installClamshellSupport() -> Bool {
+        if clamshellSupported { return true }
+        let user = NSUserName()
+        let rule = "\(user) ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep *"
+        // пишем правило, выставляем права 0440 и проверяем синтаксис visudo
+        let cmd = "/bin/echo '\(rule)' > \(sudoersPath) && /bin/chmod 0440 \(sudoersPath) " +
+                  "&& /usr/sbin/visudo -cf \(sudoersPath)"
+        let ok = runAdmin(cmd)
+        if !ok { try? FileManager.default.removeItem(atPath: sudoersPath) }
+        return ok
+    }
+
+    /// Идемпотентно. Если доступ выдан — выполняется тихо, без пароля.
     func setClamshell(_ enabled: Bool) {
         guard enabled != clamshellForced else { return }
-        if enabled && clamshellDenied { return }
-        let ok = runPrivileged("/usr/bin/pmset -a disablesleep \(enabled ? 1 : 0)")
-        if ok {
+        guard clamshellSupported else { return }   // нет гранта — молча ничего не делаем
+        if runSudoNoPrompt("disablesleep \(enabled ? 1 : 0)") {
             clamshellForced = enabled
-            if !enabled { clamshellDenied = false }
-        } else if enabled {
-            clamshellDenied = true   // отклонил — не нервируем
         }
     }
 
-    /// Вернуть disablesleep=0 при выходе. Тихо — без повторного диалога, если он уже стоял.
+    /// Вернуть disablesleep=0 при выходе. Тихо.
     func shutdown() {
         stop()
-        if clamshellForced {
-            runPrivileged("/usr/bin/pmset -a disablesleep 0")
+        if clamshellForced, clamshellSupported {
+            _ = runSudoNoPrompt("disablesleep 0")
             clamshellForced = false
         }
     }
 
-    @discardableResult
-    private func runPrivileged(_ command: String) -> Bool {
+    /// `sudo -n` — без интерактивного запроса пароля (работает благодаря правилу sudoers).
+    private func runSudoNoPrompt(_ args: String) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        p.arguments = ["-n", "/usr/bin/pmset", "-a"] + args.split(separator: " ").map(String.init)
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        do { try p.run(); p.waitUntilExit(); return p.terminationStatus == 0 }
+        catch { return false }
+    }
+
+    /// Разовый запрос прав администратора через нативный диалог macOS.
+    private func runAdmin(_ command: String) -> Bool {
         let script = "do shell script \"\(command)\" with administrator privileges"
         guard let apple = NSAppleScript(source: script) else { return false }
         var err: NSDictionary?

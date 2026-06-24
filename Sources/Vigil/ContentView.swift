@@ -186,8 +186,13 @@ struct SettingsView: View {
             Toggle("Notify me when it pauses", isOn: $state.notifyOnPause)
 
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Force lid-closed wake on battery", isOn: $state.forceClamshell)
-                Text("Off by default. When on, asks for your admin password once to run `pmset disablesleep`. On AC power this isn't needed.")
+                Toggle("Force lid-closed wake on battery", isOn: Binding(
+                    get: { state.forceClamshell },
+                    set: { state.setForceClamshell($0) }
+                ))
+                Text(state.clamshellSupported
+                     ? "Access granted ✓ — works without a password now."
+                     : "Asks for your admin password once, then never again. On AC power this isn't needed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

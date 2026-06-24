@@ -18,6 +18,8 @@ final class AppState: ObservableObject {
 
     // Состояние
     @Published var isAwake = false
+    /// Ручное включение тумблером — имеет приоритет над авто-режимом, не гаснет само.
+    @Published var manualOn = false
     @Published var battery = BatterySnapshot(percent: -1, isCharging: false, onAC: true, hasBattery: false)
     @Published var agents: [AgentStatus] = []
     @Published var startedAt: Date? = nil
@@ -62,15 +64,17 @@ final class AppState: ObservableObject {
 
     func toggle() {
         if isAwake {
+            manualOn = false
             stopAwake()
-            // ручное выключение перебивает auto до следующего запуска агента
         } else {
+            manualOn = true          // ручной приоритет — авто-режим не погасит
             pausedUntil = nil
             startAwake()
         }
     }
 
     func pause(minutes: Int) {
+        manualOn = false
         pausedUntil = Date().addingTimeInterval(Double(minutes) * 60)
         stopAwake()
         notify("Paused for \(minutes >= 60 ? "\(minutes/60)h" : "\(minutes)m")",
@@ -100,9 +104,10 @@ final class AppState: ObservableObject {
         // снять паузу по истечении
         if let until = pausedUntil, until <= now { pausedUntil = nil }
 
-        // авто-стоп по низкому заряду (батарея, не на зарядке)
+        // авто-стоп по низкому заряду (батарея, не на зарядке) — перебивает даже ручной режим
         if isAwake, battery.hasBattery, !battery.onAC, battery.percent >= 0,
            battery.percent <= batteryFloor {
+            manualOn = false
             stopAwake()
             pausedUntil = Date().addingTimeInterval(300) // не дёргаться 5 минут
             notify("Stopped — battery \(battery.percent)%",
@@ -110,9 +115,13 @@ final class AppState: ObservableObject {
             return
         }
 
-        // авто-режим: бодрствуем, пока есть рабочие агенты
         guard pausedUntil == nil else { return }
-        if autoMode {
+
+        if manualOn {
+            // ручной приоритет: держим бодрым независимо от агентов
+            if !isAwake { startAwake() }
+        } else if autoMode {
+            // авто-режим: бодрствуем, пока есть рабочие агенты
             let working = totalSessions > 0
             if working && !isAwake { startAwake() }
             else if !working && isAwake { stopAwake() }
@@ -125,6 +134,23 @@ final class AppState: ObservableObject {
         // поэтому пароль не дёргается на каждый запуск/остановку агента.
         let wantClamshell = forceClamshell && lidProof && battery.hasBattery && !battery.onAC
         power.setClamshell(wantClamshell)
+    }
+
+    var clamshellSupported: Bool { power.clamshellSupported }
+
+    /// Включение/выключение «force clamshell». При первом включении один раз спросит
+    /// пароль админа и выдаст постоянный доступ (sudoers). Дальше пароль не нужен.
+    func setForceClamshell(_ on: Bool) {
+        if on && !power.clamshellSupported {
+            let granted = power.installClamshellSupport()
+            if !granted {
+                forceClamshell = false
+                notify("Access not granted", "Couldn't set up lid-closed wake on battery.")
+                return
+            }
+        }
+        forceClamshell = on
+        refresh()
     }
 
     /// Вызывается при выходе — снимает запрет сна.
