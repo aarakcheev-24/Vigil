@@ -185,6 +185,12 @@ struct SettingsView: View {
             Toggle("Auto mode (wake only while an agent is working)", isOn: $state.autoMode)
             Toggle("Notify me when it pauses", isOn: $state.notifyOnPause)
 
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Force lid-closed wake on battery", isOn: $state.forceClamshell)
+                Text("Off by default. When on, asks for your admin password once to run `pmset disablesleep`. On AC power this isn't needed.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("Stop below \(state.batteryFloor)% battery")
                 Slider(value: Binding(

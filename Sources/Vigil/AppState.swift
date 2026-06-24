@@ -13,6 +13,8 @@ final class AppState: ObservableObject {
     @AppStorage("autoMode")       var autoMode = true
     @AppStorage("batteryFloor")   var batteryFloor = 15        // %
     @AppStorage("notifyOnPause")  var notifyOnPause = true
+    /// Запрет сна с закрытой крышкой НА БАТАРЕЕ через pmset (нужны права админа). По умолчанию выкл.
+    @AppStorage("forceClamshell") var forceClamshell = false
 
     // Состояние
     @Published var isAwake = false
@@ -76,9 +78,7 @@ final class AppState: ObservableObject {
     }
 
     private func startAwake() {
-        let onBattery = battery.hasBattery && !battery.onAC
         power.start(lidProof: lidProof,
-                    onBattery: onBattery,
                     reason: "\(Brand.appName): \(totalSessions) agent session(s) running")
         isAwake = true
         if startedAt == nil { startedAt = Date() }
@@ -120,6 +120,16 @@ final class AppState: ObservableObject {
 
         // поддерживать актуальный lid-proof, если настройку поменяли на лету
         if isAwake && power.isActive == false { startAwake() }
+
+        // pmset clamshell — оценивается ОТДЕЛЬНО от мигания авто-режима, идемпотентно,
+        // поэтому пароль не дёргается на каждый запуск/остановку агента.
+        let wantClamshell = forceClamshell && lidProof && battery.hasBattery && !battery.onAC
+        power.setClamshell(wantClamshell)
+    }
+
+    /// Вызывается при выходе — снимает запрет сна.
+    func shutdown() {
+        power.shutdown()
     }
 
     private func notify(_ title: String, _ body: String) {

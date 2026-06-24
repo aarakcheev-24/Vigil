@@ -44,6 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.contentTintColor = state.isAwake ? NSColor(Brand.good) : nil
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        state.shutdown()
+    }
+
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown {
