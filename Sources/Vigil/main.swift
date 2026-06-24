@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private let state = AppState()
     private var onboardingWindow: NSWindow?
+    private var lastIconName: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // без иконки в Dock
@@ -69,16 +70,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshIcon() {
         guard let button = statusItem.button else { return }
-        let icon = state.menuIcon
-        let name = state.isAwake ? icon.active : icon.idle
+        // Один и тот же глаз: контур в покое, заливка когда держим Mac бодрым.
+        let name = state.isAwake ? "eye.fill" : "eye"
+        guard name != lastIconName else { return }   // не переустанавливаем зря → нет мигания
         let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        let img = NSImage(systemSymbolName: name, accessibilityDescription: Brand.appName)?
-            .withSymbolConfiguration(cfg)
-        // template = система сама красит: белый в тёмной строке меню, чёрный в светлой.
-        // Цвет НЕ трогаем — состояние видно по самому значку (контур → заливка).
-        img?.isTemplate = true
+        guard let img = NSImage(systemSymbolName: name, accessibilityDescription: Brand.appName)?
+            .withSymbolConfiguration(cfg) else { return }   // nil → оставляем прежний (не квадрат)
+        img.isTemplate = true   // система красит белым на тёмной панели, чёрным на светлой
         button.image = img
+        button.imagePosition = .imageOnly
         button.contentTintColor = nil
+        lastIconName = name
     }
 
     func applicationWillTerminate(_ notification: Notification) {

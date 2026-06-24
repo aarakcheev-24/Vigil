@@ -204,19 +204,6 @@ struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Menu bar icon")
-                Picker("", selection: $state.menuIconRaw) {
-                    ForEach(MenuIcon.allCases) { icon in
-                        Label(icon.label, systemImage: icon.idle).tag(icon.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Text("Always monochrome — white on dark menu bars, black on light. State shows as a filled icon.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
                 Text("Stop below \(state.batteryFloor)% battery")
                 Slider(value: Binding(
                     get: { Double(state.batteryFloor) },

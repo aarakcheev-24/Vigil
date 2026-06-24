@@ -16,9 +16,6 @@ final class AppState: ObservableObject {
     @AppStorage("notifyOnPause")  var notifyOnPause = true
     /// Запрет сна с закрытой крышкой НА БАТАРЕЕ через pmset (нужны права админа). По умолчанию выкл.
     @AppStorage("forceClamshell") var forceClamshell = false
-    @AppStorage("menuIcon")       var menuIconRaw = MenuIcon.eye.rawValue
-
-    var menuIcon: MenuIcon { MenuIcon(rawValue: menuIconRaw) ?? .eye }
 
     // Состояние
     @Published var isAwake = false
@@ -56,18 +53,26 @@ final class AppState: ObservableObject {
     }
 
     var elapsedString: String {
-        guard let s = startedAt else { return "0h 0m" }
-        let secs = Int(now.timeIntervalSince(s))
-        return "\(secs / 3600)h \((secs % 3600) / 60)m"
+        guard let s = startedAt else { return "0m 0s" }
+        let secs = max(0, Int(now.timeIntervalSince(s)))
+        let h = secs / 3600, m = (secs % 3600) / 60, sec = secs % 60
+        return h > 0 ? "\(h)h \(m)m" : "\(m)m \(sec)s"
     }
+
+    private var tick = 0
 
     func boot() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            self?.refresh()
+        // Тик раз в секунду — таймер идёт плавно. Тяжёлый скан (ps/батарея) — раз в 5 сек.
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.now = Date()
+            self.tick += 1
+            if self.tick % 5 == 0 { self.refresh() }
         }
-        RunLoop.main.add(timer!, forMode: .common)
+        RunLoop.main.add(t, forMode: .common)   // .common — работает и при открытом попапе
+        timer = t
     }
 
     // MARK: - Управление
