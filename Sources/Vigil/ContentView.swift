@@ -191,11 +191,6 @@ struct SettingsView: View {
             Toggle("Auto mode (wake only while an agent is working)", isOn: $state.autoMode)
             Toggle("Notify me when it pauses", isOn: $state.notifyOnPause)
 
-            Text(state.clamshellSupported
-                 ? "Lid-closed wake on battery: enabled — follows the switch."
-                 : "Lid-closed wake on battery isn't set up. Re-run onboarding to grant it once.")
-                .font(.caption).foregroundStyle(.secondary)
-
             VStack(alignment: .leading, spacing: 6) {
                 Text("Stop below \(state.batteryFloor)% battery")
                 Slider(value: Binding(
