@@ -60,10 +60,11 @@ names. Adding a new agent is one line in
 
 ## Roadmap
 
-- [ ] Launch at login
-- [ ] Custom menu-bar icon set
+- [x] Launch at login
+- [x] Custom menu-bar icon set
+- [x] App icon + `.dmg`
 - [ ] Per-project allowlist
-- [ ] Notarized, signed `.dmg`
+- [ ] Notarized, signed build (needs an Apple Developer account)
 - [ ] Homebrew cask
 
 ## License

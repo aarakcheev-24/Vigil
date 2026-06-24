@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import UserNotifications
+import ServiceManagement
 
 enum AwakeMode: String {
     case manual   // включено пользователем тумблером
@@ -140,6 +141,22 @@ final class AppState: ObservableObject {
     }
 
     var clamshellSupported: Bool { power.clamshellSupported }
+
+    // MARK: - Автозапуск при логине
+
+    var launchAtLogin: Bool {
+        SMAppService.mainApp.status == .enabled
+    }
+
+    func setLaunchAtLogin(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() }
+            else  { try SMAppService.mainApp.unregister() }
+        } catch {
+            notify("Login item failed", error.localizedDescription)
+        }
+        objectWillChange.send()
+    }
 
     /// Включение/выключение «force clamshell». При первом включении один раз спросит
     /// пароль админа и выдаст постоянный доступ (sudoers). Дальше пароль не нужен.
