@@ -32,6 +32,8 @@ final class AppState: ObservableObject {
     @Published var startedAt: Date? = nil
     @Published var pausedUntil: Date? = nil
     @Published var now = Date()
+    /// Триггер: попросить попап открыть Settings (после онбординга).
+    @Published var presentSettings = false
 
     private let power = PowerManager()
     private let monitor = AgentMonitor()
@@ -130,11 +132,11 @@ final class AppState: ObservableObject {
         if manualOn {
             // ручной приоритет: держим бодрым независимо от агентов
             if !isAwake { startAwake() }
-        } else if autoMode {
-            // авто-режим: бодрствуем, пока есть рабочие агенты
+        } else if autoMode && !autoSuppressed {
+            // авто-режим: бодрствуем, пока есть рабочие агенты.
+            // Выключили вручную (autoSuppressed) — авто молчит до ручного включения.
             let working = totalSessions > 0
-            if !working { autoSuppressed = false }      // сброс ручного «выкл» при простое
-            if working && !isAwake && !autoSuppressed { startAwake() }
+            if working && !isAwake { startAwake() }
             else if !working && isAwake { stopAwake() }
         }
 

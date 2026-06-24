@@ -3,7 +3,6 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var state: AppState
     @State private var showSettings = false
-    @State private var pulse = false
 
     private let mono = Font.system(.caption, design: .monospaced)
 
@@ -18,9 +17,10 @@ struct ContentView: View {
             pauseSection
             divider
             footer
+            Spacer(minLength: 0)
         }
         .padding(18)
-        .frame(width: 320)
+        .frame(width: 320, height: 540, alignment: .top)   // фикс. высота — попап не дёргается
         .background(
             LinearGradient(
                 colors: [Color(red: 0.13, green: 0.13, blue: 0.15),
@@ -29,10 +29,8 @@ struct ContentView: View {
         )
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSettings) { SettingsView(state: state) }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
+        .onChange(of: state.presentSettings) { open in
+            if open { showSettings = true; state.presentSettings = false }
         }
     }
 
@@ -42,9 +40,6 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
                     Circle().fill(headerDotColor).frame(width: 8, height: 8)
-                        .scaleEffect(state.isAwake && pulse ? 1.35 : 1.0)
-                        .shadow(color: headerDotColor.opacity(0.9),
-                                radius: state.isAwake ? (pulse ? 6 : 2) : 0)
                     Text(Brand.appName).font(.system(size: 17, weight: .bold))
                 }
                 Text(state.statusLine)
@@ -123,8 +118,6 @@ struct ContentView: View {
                         Text("\(a.sessions) session\(a.sessions > 1 ? "s" : "")")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                         Circle().fill(Brand.good).frame(width: 7, height: 7)
-                            .scaleEffect(pulse ? 1.4 : 0.85)
-                            .shadow(color: Brand.good.opacity(0.9), radius: pulse ? 5 : 1)
                     } else {
                         Text("idle").font(.system(size: 12)).foregroundStyle(.tertiary)
                     }
