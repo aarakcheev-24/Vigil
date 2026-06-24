@@ -24,6 +24,9 @@ final class AppState: ObservableObject {
     @Published var isAwake = false
     /// Ручное включение тумблером — имеет приоритет над авто-режимом, не гаснет само.
     @Published var manualOn = false
+    /// Ручное выключение тумблером — подавляет авто-режим, пока идут текущие сессии.
+    /// Сбрасывается, когда все агенты простаивают (следующая новая сессия снова включит авто).
+    @Published var autoSuppressed = false
     @Published var battery = BatterySnapshot(percent: -1, isCharging: false, onAC: true, hasBattery: false)
     @Published var agents: [AgentStatus] = []
     @Published var startedAt: Date? = nil
@@ -46,6 +49,7 @@ final class AppState: ObservableObject {
             let lid = lidProof ? "lid-proof" : "screen-on"
             return "Awake — \(lid) · \(elapsedString)"
         }
+        if autoSuppressed { return "Off — you turned it off" }
         return autoMode ? "Auto — sleeps when idle" : "Asleep — sleep allowed"
     }
 
@@ -69,9 +73,11 @@ final class AppState: ObservableObject {
     func toggle() {
         if isAwake {
             manualOn = false
+            autoSuppressed = true    // явно выключили — авто-режим не включит обратно
             stopAwake()
         } else {
             manualOn = true          // ручной приоритет — авто-режим не погасит
+            autoSuppressed = false
             pausedUntil = nil
             startAwake()
         }
@@ -127,7 +133,8 @@ final class AppState: ObservableObject {
         } else if autoMode {
             // авто-режим: бодрствуем, пока есть рабочие агенты
             let working = totalSessions > 0
-            if working && !isAwake { startAwake() }
+            if !working { autoSuppressed = false }      // сброс ручного «выкл» при простое
+            if working && !isAwake && !autoSuppressed { startAwake() }
             else if !working && isAwake { stopAwake() }
         }
 
